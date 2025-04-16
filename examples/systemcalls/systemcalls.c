@@ -16,8 +16,9 @@ bool do_system(const char *cmd)
  *   and return a boolean true if the system() call completed with success
  *   or false() if it returned a failure
 */
-
-    return true;
+    int a;
+    a = system(cmd);
+    return (a!=-1);
 }
 
 /**
@@ -57,11 +58,52 @@ bool do_exec(int count, ...)
  *   (first argument to execv), and use the remaining arguments
  *   as second argument to the execv() command.
  *
-*/
-
+*/    
+    int status;
+    printf("Count++\n");
+    pid_t pid = fork();
+    printf("pid is %d\n",pid);
+    if(pid<0){
+      perror("fork failed");
+      printf("fork failed\n");
+      return false;
+    }
+    else if(pid==0){
+      int ret = execv(command[0],command);
+      if(ret==-1){
+        perror("execv failed");
+        //return false;
+        exit(1);
+      }
+      printf("It is else if\n");
+      return true;
+    }
+    else{
+      printf("It is parent\n");      
+      if(waitpid(pid,&status,0) == -1)
+        return false;
+      //else if(WIFEXITED(status))
+      //  return true;
+    }
+      
     va_end(args);
-
+    
+    if (WIFEXITED(status)) {
+        int exit_code = WEXITSTATUS(status);
+        //printf("Child exited with code %d\n", exit_code);
+        //return exit_code == 0;
+        if(exit_code == 0) {return true;}
+        else {return false;}
+    }
+    /*
+    //wait(&status);     // When do I need to add this
+    //waitpid(pid,&status,0);
+    if(WIFEXITED(status)){
+        return true;
+    }
+    */
     return true;
+    
 }
 
 /**
@@ -87,13 +129,43 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 
 /*
  * TODO
- *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a refernce,
+ *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a reference,
  *   redirect standard out to a file specified by outputfile.
  *   The rest of the behaviour is same as do_exec()
  *
 */
-
+    int status;
+    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT);
+    if(fd<0){perror("open"); abort();}
+    
+    pid_t pid = fork();
+    if(pid<0){
+      perror("fork failed");
+      return false;
+    }
+    else if(pid==0){
+      if(dup2(fd,1)<0){perror("dup2"); abort();}
+      close(fd);
+      int ret = execvp(command[0],command);
+      if(ret==-1){
+        perror("execv failed");
+        exit(1);
+        }
+    }
+    else{
+      //printf("I am the parent of p");
+      if(waitpid(pid,&status,0) == -1)
+        return false;
+    }
     va_end(args);
 
+    if (WIFEXITED(status)) {
+        int exit_code = WEXITSTATUS(status);
+        //printf("Child exited with code %d\n", exit_code);
+        //return exit_code == 0;
+        if(exit_code == 0) {return true;}
+        else {return false;}
+    }
+    
     return true;
 }
